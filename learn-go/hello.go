@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/caarlos0/env"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
@@ -9,6 +10,7 @@ import (
 	"github.com/qor/qor"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 var DB = make(map[string]string)
@@ -23,8 +25,27 @@ func (OrderItem) TableName() string {
 	return "stat_orderitem"
 }
 
+type Config struct {
+	DatabaseHost     string `env:"DatabaseHost"`
+	DatabasePort     int    `env:"PORT" envDefault:"5432"`
+	DatabaseName     string `env:"DatabaseName" envDefault:"partner_20160602"`
+	DatabaseUser     string `env:"DatabaseUser" envDefault:"postgres"`
+	DatabasePassword string `env:"DatabasePassword"`
+}
+
 func main() {
-	DB, err := gorm.Open("postgres", "host= port=5432 user=postgres dbname= password=")
+
+	cfg := Config{}
+	env.Parse(&cfg)
+	fmt.Println(cfg)
+
+	DB, err := gorm.Open(
+		"postgres",
+		"host="+cfg.DatabaseHost+
+			" port="+strconv.Itoa(cfg.DatabasePort)+
+			" user="+cfg.DatabaseUser+
+			" dbname="+cfg.DatabaseName+
+			" password="+cfg.DatabasePassword)
 
 	if err != nil {
 		log.Fatal(err)
