@@ -11,18 +11,20 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 var DB = make(map[string]string)
 
-type OrderItem struct {
-	ID       uint
-	Order_id int
-	Status   string
+type ApiAuthKey struct {
+	ID        uint
+	Key       string
+	Is_Active bool
+	Rps       int
 }
 
-func (OrderItem) TableName() string {
-	return "stat_orderitem"
+func (ApiAuthKey) TableName() string {
+	return "partners_apiauthkey"
 }
 
 type Config struct {
@@ -50,11 +52,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	r := gin.Default()
+	router := gin.Default()
 
 	// Ping test
-	r.GET("/ping", func(c *gin.Context) {
-		ois := []OrderItem{}
+	router.GET("/ping", func(c *gin.Context) {
+		ois := []ApiAuthKey{}
 		DB.Limit(10).Find(&ois)
 		fmt.Println(ois)
 		c.String(200, "pong")
@@ -64,11 +66,19 @@ func main() {
 	Admin := admin.New(&qor.Config{DB: DB})
 
 	// Create resources from GORM-backend model
-	Admin.AddResource(&OrderItem{})
+	Admin.AddResource(&ApiAuthKey{})
 
+	// Binding qor admin with Gin
 	mux := http.NewServeMux()
 	Admin.MountTo("/admin", mux)
+	router.Any("/admin/*w", gin.WrapH(mux))
 
-	r.Any("/admin/*w", gin.WrapH(mux))
-	r.Run(":8080")
+	s := &http.Server{
+		Addr:           ":8080",
+		Handler:        router,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		MaxHeaderBytes: 1 << 20,
+	}
+	s.ListenAndServe()
 }
