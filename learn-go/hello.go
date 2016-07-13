@@ -46,6 +46,14 @@ func get_apiauthkeys(DB *gorm.DB) map[string]string {
 	return m
 }
 
+// Binding from JSON
+type HotelRatesEndpointIn struct {
+	Adults   int      `json:"adults" binding:"required"`
+	Checkin  string   `json:"checkin" binding:"required"`
+	Checkout string   `json:"checkout" binding:"required"`
+	Ids      []string `json:"Ids" binding:"required"`
+}
+
 func main() {
 
 	// Load env config
@@ -66,16 +74,6 @@ func main() {
 		log.Fatal(err)
 	}
 	router := gin.Default()
-
-	//	=== Admin part START===
-	Admin := admin.New(&qor.Config{DB: DB})
-	//	Create resources from GORM-backend model
-	Admin.AddResource(&ApiAuthKey{})
-	//	Binding admin with Gin
-	mux := http.NewServeMux()
-	Admin.MountTo("/admin", mux)
-	router.Any("/admin/*w", gin.WrapH(mux))
-	//	=== Admin part END ===
 
 	// Init HTTP BASIC AUTH
 	authorized := router.Group("/api", gin.BasicAuth(get_apiauthkeys(DB)))
@@ -99,16 +97,40 @@ func main() {
 		c.JSON(http.StatusOK, msg)
 	})
 	// hotel/rates
-	authorized.GET("/hotel/rates", func(c *gin.Context) {
-		// get user, it was set by the BasicAuth middleware
+	authorized.GET("/ping/auth", func(c *gin.Context) {
 		user := c.MustGet(gin.AuthUserKey).(string)
-		if secret, ok := secrets[user]; ok {
-			c.JSON(http.StatusOK, gin.H{"user": user, "secret": secret})
-		} else {
-			c.JSON(http.StatusOK, gin.H{"user": user, "secret": "NO SECRET :("})
-		}
+
+		adults := c.DefaultQuery("adults", "2")
+		checkin := c.Query("checkin")
+		checkout := c.Query("checkout")
+
+		fmt.Println(user)
+		c.JSON(http.StatusOK, gin.H{
+			"user":     user,
+			"adults":   adults,
+			"checkin":  checkin,
+			"checkout": checkout,
+		})
 	})
-	// === Endpoints part END ===
+	// hotel/rates
+	authorized.POST("/affiliate/v2/hotel/rates", func(c *gin.Context) {
+		var params HotelRatesEndpointIn
+		if c.BindJSON(&params) == nil {
+			c.JSON(http.StatusOK, gin.H{"params": params})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"status": "error"})
+		}
+	}) // === Endpoints part END ===
+
+	//	=== Admin part START===
+	Admin := admin.New(&qor.Config{DB: DB})
+	//	Create resources from GORM-backend model
+	Admin.AddResource(&ApiAuthKey{})
+	//	Binding admin with Gin
+	mux := http.NewServeMux()
+	Admin.MountTo("/admin", mux)
+	router.Any("/admin/*w", gin.WrapH(mux))
+	//	=== Admin part END ===
 
 	s := &http.Server{
 		Addr:           ":8080",
